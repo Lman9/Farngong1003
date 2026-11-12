@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-HK">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      (function () {
+        var OrigWebSocket = window.WebSocket;
+        if (!OrigWebSocket) return;
+        function createViteHmrStub(url, protocols) {
+          var target = new EventTarget();
+          target.url = String(url || '');
+          target.protocol = typeof protocols === 'string' ? protocols : '';
+          target.readyState = 1;
+          target.CONNECTING = 0;
+          target.OPEN = 1;
+          target.CLOSING = 2;
+          target.CLOSED = 3;
+          target.send = function () {};
+          target.close = function () {
+            target.readyState = 3;
+          };
+          setTimeout(function () {
+            target.dispatchEvent(new Event('open'));
+          }, 0);
+          return target;
+        }
+        var PatchedWebSocket = function (url, protocols) {
+          if (protocols === 'vite-hmr' || protocols === 'vite-ping') {
+            return createViteHmrStub(url, protocols);
+          }
+          return arguments.length > 1
+            ? new OrigWebSocket(url, protocols)
+            : new OrigWebSocket(url);
+        };
+        PatchedWebSocket.prototype = OrigWebSocket.prototype;
+        PatchedWebSocket.CONNECTING = OrigWebSocket.CONNECTING;
+        PatchedWebSocket.OPEN = OrigWebSocket.OPEN;
+        PatchedWebSocket.CLOSING = OrigWebSocket.CLOSING;
+        PatchedWebSocket.CLOSED = OrigWebSocket.CLOSED;
+        window.WebSocket = PatchedWebSocket;
+      })();
+    </script>
+    <title>返工1001 | Farngong1001 - 香港打工仔百寶工具箱</title>
+    <meta name="description" content="香港打工仔專屬百寶工具箱：今日打工仔通勝、食乜好轉盤、全身12部位拉筋大全、身體不適應急指南、廁所薪水小偷及大假計算器、打工仔金句、街坊投稿與玩乜好活動。" />
+    <meta property="og:title" content="返工1001 | Farngong1001 - 香港打工仔百寶工具箱" />
+    <meta property="og:description" content="香港打工仔職場百寶工具箱：通勝宜忌、食乜好、拉筋大全、不適應急指南、廁所薪水小偷計算器、打工仔金句、街坊投稿與玩乜好。" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@600;700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#FAF6EE] text-[#1C1917] antialiased selection:bg-[#C83E2B]/20 selection:text-[#991B1B]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

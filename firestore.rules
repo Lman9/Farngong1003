@@ -1,0 +1,611 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Global Hardened Primitives
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'mlhmm0519@gmail.com'
+      );
+    }
+
+    // =========================================================================
+    // Entity Validation Blueprints (Anti-Update-Gap)
+    // =========================================================================
+    function isValidUserPublicProfile(data) {
+      return data.keys().hasAll([
+        'uid', 'displayName', 'jobTitle', 'district', 'bio',
+        'avatarId', 'activeFrame', 'activeBadge', 'activeCharm',
+        'points', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid', 'displayName', 'jobTitle', 'district', 'bio',
+        'avatarId', 'activeFrame', 'activeBadge', 'activeCharm',
+        'points', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.uid) &&
+      data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+      data.jobTitle is string && data.jobTitle.size() <= 80 &&
+      data.district is string && data.district.size() <= 60 &&
+      data.bio is string && data.bio.size() <= 600 &&
+      data.avatarId is string && data.avatarId.size() >= 1 && data.avatarId.size() <= 40 &&
+      data.activeFrame is string && data.activeFrame.size() >= 1 && data.activeFrame.size() <= 40 &&
+      data.activeBadge is string && data.activeBadge.size() >= 1 && data.activeBadge.size() <= 40 &&
+      data.activeCharm is string && data.activeCharm.size() >= 1 && data.activeCharm.size() <= 40 &&
+      data.points is number && data.points >= 0 && data.points <= 1000000 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateData(data) {
+      return data.keys().hasAll([
+        'uid', 'email', 'authProvider', 'cvFileName', 'cvSummary',
+        'cvSkills', 'cvExperience', 'cvPortfolioUrl', 'cvContentData',
+        'unlockedItemsCsv', 'completedMissionsCsv', 'lastLoginDate',
+        'adWatchCount', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid', 'email', 'authProvider', 'cvFileName', 'cvSummary',
+        'cvSkills', 'cvExperience', 'cvPortfolioUrl', 'cvContentData',
+        'unlockedItemsCsv', 'completedMissionsCsv', 'lastLoginDate',
+        'adWatchCount', 'updatedAt'
+      ]) &&
+      isValidId(data.uid) &&
+      data.email is string && data.email.size() <= 200 &&
+      data.authProvider is string && data.authProvider.size() >= 1 && data.authProvider.size() <= 40 &&
+      data.cvFileName is string && data.cvFileName.size() <= 160 &&
+      data.cvSummary is string && data.cvSummary.size() <= 1500 &&
+      data.cvSkills is string && data.cvSkills.size() <= 500 &&
+      data.cvExperience is string && data.cvExperience.size() <= 200 &&
+      data.cvPortfolioUrl is string && data.cvPortfolioUrl.size() <= 300 &&
+      data.cvContentData is string && data.cvContentData.size() <= 150000 &&
+      data.unlockedItemsCsv is string && data.unlockedItemsCsv.size() <= 2000 &&
+      data.completedMissionsCsv is string && data.completedMissionsCsv.size() <= 2000 &&
+      data.lastLoginDate is string && data.lastLoginDate.size() <= 20 &&
+      data.adWatchCount is number && data.adWatchCount >= 0 && data.adWatchCount <= 100000 &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidUserSubmittedEvent(data) {
+      return data.keys().hasAll([
+        'id', 'creatorUid', 'hostName', 'hostRole', 'title',
+        'date', 'time', 'location', 'district', 'fee',
+        'totalSpots', 'spotsLeft', 'category', 'description',
+        'perksCsv', 'status', 'createdAt', 'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id', 'creatorUid', 'hostName', 'hostRole', 'title',
+        'date', 'time', 'location', 'district', 'fee',
+        'totalSpots', 'spotsLeft', 'category', 'description',
+        'perksCsv', 'status', 'createdAt', 'updatedAt'
+      ]) &&
+      isValidId(data.id) &&
+      isValidId(data.creatorUid) &&
+      data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 80 &&
+      data.hostRole is string && data.hostRole.size() <= 80 &&
+      data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+      data.date is string && data.date.size() >= 1 && data.date.size() <= 60 &&
+      data.time is string && data.time.size() >= 1 && data.time.size() <= 60 &&
+      data.location is string && data.location.size() >= 1 && data.location.size() <= 120 &&
+      data.district is string && data.district.size() >= 1 && data.district.size() <= 60 &&
+      data.fee is string && data.fee.size() >= 1 && data.fee.size() <= 60 &&
+      data.totalSpots is number && data.totalSpots >= 1 && data.totalSpots <= 500 &&
+      data.spotsLeft is number && data.spotsLeft >= 0 && data.spotsLeft <= data.totalSpots &&
+      data.category is string && data.category.size() <= 30 &&
+      (data.category == 'wellness' || data.category == 'sports' || data.category == 'creative' || data.category == 'social') &&
+      data.description is string && data.description.size() >= 1 && data.description.size() <= 1000 &&
+      data.perksCsv is string && data.perksCsv.size() <= 500 &&
+      data.status is string && data.status.size() <= 20 &&
+      (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected') &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidEventRegistration(data) {
+      return data.keys().hasAll([
+        'id', 'eventId', 'eventTitle', 'userUid',
+        'participantName', 'participantPhone', 'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id', 'eventId', 'eventTitle', 'userUid',
+        'participantName', 'participantPhone', 'createdAt'
+      ]) &&
+      isValidId(data.id) &&
+      isValidId(data.eventId) &&
+      data.eventTitle is string && data.eventTitle.size() >= 1 && data.eventTitle.size() <= 120 &&
+      isValidId(data.userUid) &&
+      data.participantName is string && data.participantName.size() >= 1 && data.participantName.size() <= 80 &&
+      data.participantPhone is string && data.participantPhone.size() >= 1 && data.participantPhone.size() <= 40 &&
+      data.createdAt is timestamp;
+    }
+
+    function isValidJobApplication(data) {
+      return data.keys().hasAll([
+        'id', 'jobId', 'jobTitle', 'company', 'userUid',
+        'applicantName', 'applicantEmail', 'applicantNote',
+        'cvFileName', 'cvSummary', 'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id', 'jobId', 'jobTitle', 'company', 'userUid',
+        'applicantName', 'applicantEmail', 'applicantNote',
+        'cvFileName', 'cvSummary', 'createdAt'
+      ]) &&
+      isValidId(data.id) &&
+      isValidId(data.jobId) &&
+      data.jobTitle is string && data.jobTitle.size() >= 1 && data.jobTitle.size() <= 120 &&
+      data.company is string && data.company.size() >= 1 && data.company.size() <= 100 &&
+      isValidId(data.userUid) &&
+      data.applicantName is string && data.applicantName.size() >= 1 && data.applicantName.size() <= 80 &&
+      data.applicantEmail is string && data.applicantEmail.size() >= 3 && data.applicantEmail.size() <= 200 &&
+      data.applicantNote is string && data.applicantNote.size() <= 1000 &&
+      data.cvFileName is string && data.cvFileName.size() <= 160 &&
+      data.cvSummary is string && data.cvSummary.size() <= 1500 &&
+      data.createdAt is timestamp;
+    }
+
+    function isValidAdminRole(data) {
+      return data.keys().hasAll(['uid', 'grantedAt']) &&
+        data.keys().hasOnly(['uid', 'grantedAt']) &&
+        isValidId(data.uid) &&
+        data.grantedAt is timestamp;
+    }
+
+    function isValidUserSavedRestaurant(data) {
+      return data.keys().hasAll([
+        'id', 'userUid', 'nameYue', 'nameEn', 'region',
+        'districtCode', 'subAreaYue', 'cuisineYue', 'rating',
+        'reviewCount', 'priceRange', 'budgetMax', 'addressYue',
+        'addressEn', 'openingHours', 'signatureDishesCsv',
+        'tcmBenefitYue', 'stampTagYue', 'lat', 'lng',
+        'googleMapsUrl', 'savedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id', 'userUid', 'nameYue', 'nameEn', 'region',
+        'districtCode', 'subAreaYue', 'cuisineYue', 'rating',
+        'reviewCount', 'priceRange', 'budgetMax', 'addressYue',
+        'addressEn', 'openingHours', 'signatureDishesCsv',
+        'tcmBenefitYue', 'stampTagYue', 'lat', 'lng',
+        'googleMapsUrl', 'savedAt'
+      ]) &&
+      isValidId(data.id) &&
+      isValidId(data.userUid) &&
+      data.nameYue is string && data.nameYue.size() >= 1 && data.nameYue.size() <= 120 &&
+      data.nameEn is string && data.nameEn.size() >= 1 && data.nameEn.size() <= 120 &&
+      data.region is string && data.region.size() <= 30 &&
+      (data.region == 'hk-island' || data.region == 'kowloon' || data.region == 'new-territories') &&
+      data.districtCode is string && data.districtCode.size() >= 1 && data.districtCode.size() <= 40 &&
+      data.subAreaYue is string && data.subAreaYue.size() <= 80 &&
+      data.cuisineYue is string && data.cuisineYue.size() <= 80 &&
+      data.rating is number && data.rating >= 0 && data.rating <= 5 &&
+      data.reviewCount is number && data.reviewCount >= 0 && data.reviewCount <= 500000 &&
+      data.priceRange is string && data.priceRange.size() <= 40 &&
+      data.budgetMax is number && data.budgetMax >= 0 && data.budgetMax <= 10000 &&
+      data.addressYue is string && data.addressYue.size() <= 200 &&
+      data.addressEn is string && data.addressEn.size() <= 200 &&
+      data.openingHours is string && data.openingHours.size() <= 100 &&
+      data.signatureDishesCsv is string && data.signatureDishesCsv.size() <= 300 &&
+      data.tcmBenefitYue is string && data.tcmBenefitYue.size() <= 300 &&
+      data.stampTagYue is string && data.stampTagYue.size() <= 40 &&
+      data.lat is number && data.lat >= -90 && data.lat <= 90 &&
+      data.lng is number && data.lng >= -180 && data.lng <= 180 &&
+      data.googleMapsUrl is string && data.googleMapsUrl.size() <= 500 &&
+      data.savedAt is timestamp;
+    }
+
+    function isValidMiniGameScore(data) {
+      return data.keys().hasAll([
+        'id', 'gameId', 'score', 'playerName', 'petSpeciesId',
+        'clothingId', 'accessoryId', 'coinsEarned', 'createdAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id', 'gameId', 'score', 'playerName', 'petSpeciesId',
+        'clothingId', 'accessoryId', 'coinsEarned', 'createdAt'
+      ]) &&
+      isValidId(data.id) &&
+      (data.gameId == 'coin-rush' || data.gameId == 'zen-tap' || data.gameId == 'flappy-runner') &&
+      data.score is number && data.score >= 0 && data.score <= 10000000 &&
+      data.playerName is string && data.playerName.size() >= 1 && data.playerName.size() <= 40 &&
+      data.petSpeciesId is string && data.petSpeciesId.size() >= 1 && data.petSpeciesId.size() <= 40 &&
+      data.clothingId is string && data.clothingId.size() >= 1 && data.clothingId.size() <= 60 &&
+      data.accessoryId is string && data.accessoryId.size() >= 1 && data.accessoryId.size() <= 60 &&
+      data.coinsEarned is number && data.coinsEarned >= 0 && data.coinsEarned <= 100000 &&
+      data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // 1. /users/{userId} - Public Profile (No PII)
+    // =========================================================================
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isOwner(userId) &&
+        isValidUserPublicProfile(incoming()) &&
+        incoming().uid == userId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if (
+        isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserPublicProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'jobTitle', 'district', 'bio',
+              'avatarId', 'activeFrame', 'activeBadge', 'activeCharm',
+              'points', 'updatedAt'
+            ])
+          )
+        )
+      );
+
+      allow delete: if isAdmin() && isValidId(userId);
+
+      // =======================================================================
+      // 2. /users/{userId}/private/{docId} - Isolated Private Data (PII & CV)
+      // =======================================================================
+      match /private/{docId} {
+        allow get: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(docId) &&
+          (isOwner(userId) || isAdmin()) &&
+          exists(/databases/$(database)/documents/users/$(userId));
+
+        allow create: if isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(docId) &&
+          isOwner(userId) &&
+          isValidUserPrivateData(incoming()) &&
+          incoming().uid == userId &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/users/$(userId));
+
+        allow update: if (
+          isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(docId) &&
+          isValidUserPrivateData(incoming()) &&
+          incoming().uid == existing().uid &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/users/$(userId)) && (
+            isAdmin() ||
+            (
+              isOwner(userId) &&
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'email', 'authProvider', 'cvFileName', 'cvSummary',
+                'cvSkills', 'cvExperience', 'cvPortfolioUrl', 'cvContentData',
+                'unlockedItemsCsv', 'completedMissionsCsv', 'lastLoginDate',
+                'adWatchCount', 'updatedAt'
+              ])
+            )
+          )
+        );
+
+        allow delete: if isAdmin() && isValidId(userId) && isValidId(docId);
+      }
+
+      // =======================================================================
+      // 2b. /users/{userId}/saved_restaurants/{restId} - User's Saved Restaurants
+      // =======================================================================
+      match /saved_restaurants/{restId} {
+        allow get: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(restId) &&
+          (isOwner(userId) || isAdmin());
+
+        allow list: if isSignedIn() &&
+          isValidId(userId) &&
+          (isOwner(userId) || isAdmin());
+
+        allow create: if isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(restId) &&
+          isOwner(userId) &&
+          isValidUserSavedRestaurant(incoming()) &&
+          incoming().id == restId &&
+          incoming().userUid == userId &&
+          incoming().savedAt == request.time;
+
+        allow update: if isVerifiedUser() &&
+          isValidId(userId) &&
+          isValidId(restId) &&
+          isOwner(userId) &&
+          isValidUserSavedRestaurant(incoming()) &&
+          incoming().id == existing().id &&
+          incoming().userUid == existing().userUid &&
+          incoming().savedAt == request.time;
+
+        allow delete: if isSignedIn() &&
+          isValidId(userId) &&
+          isValidId(restId) &&
+          (isOwner(userId) || isAdmin());
+      }
+    }
+
+    // =========================================================================
+    // 3. /user_events/{eventId} - User-Submitted Events with Admin Moderation
+    // =========================================================================
+    match /user_events/{eventId} {
+      allow get: if isValidId(eventId) && (
+        existing().status == 'approved' ||
+        (isSignedIn() && existing().creatorUid == request.auth.uid) ||
+        isAdmin()
+      );
+
+      allow list: if (
+        existing().status == 'approved' ||
+        (isSignedIn() && existing().creatorUid == request.auth.uid) ||
+        isAdmin()
+      );
+
+      allow create: if isVerifiedUser() &&
+        isValidId(eventId) &&
+        isValidUserSubmittedEvent(incoming()) &&
+        incoming().id == eventId &&
+        incoming().creatorUid == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().spotsLeft == incoming().totalSpots &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow update: if (
+        isVerifiedUser() &&
+        isValidId(eventId) &&
+        isValidUserSubmittedEvent(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().creatorUid == existing().creatorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          // Tier 1: Admin Moderation Action (can approve/reject or edit)
+          isAdmin() ||
+          // Tier 2: Creator Edit Action while still pending (Terminal State Lock if rejected/approved)
+          (
+            existing().creatorUid == request.auth.uid &&
+            existing().status == 'pending' &&
+            incoming().status == 'pending' &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'hostName', 'hostRole', 'title', 'date', 'time',
+              'location', 'district', 'fee', 'totalSpots', 'spotsLeft',
+              'category', 'description', 'perksCsv', 'updatedAt'
+            ])
+          )
+        )
+      );
+
+      allow delete: if isAdmin() && isValidId(eventId);
+    }
+
+    // =========================================================================
+    // 4. /event_registrations/{regId} - User Event Registrations
+    // =========================================================================
+    match /event_registrations/{regId} {
+      allow get: if isSignedIn() && isValidId(regId) && (
+        existing().userUid == request.auth.uid || isAdmin()
+      );
+
+      allow list: if isSignedIn() && (
+        existing().userUid == request.auth.uid || isAdmin()
+      );
+
+      allow create: if isVerifiedUser() &&
+        isValidId(regId) &&
+        isValidEventRegistration(incoming()) &&
+        incoming().id == regId &&
+        incoming().userUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow delete: if isSignedIn() && isValidId(regId) && (
+        existing().userUid == request.auth.uid || isAdmin()
+      );
+    }
+
+    // =========================================================================
+    // 5. /job_applications/{appId} - User Job Applications with Enclosed CV
+    // =========================================================================
+    match /job_applications/{appId} {
+      allow get: if isSignedIn() && isValidId(appId) && (
+        existing().userUid == request.auth.uid || isAdmin()
+      );
+
+      allow list: if isSignedIn() && (
+        existing().userUid == request.auth.uid || isAdmin()
+      );
+
+      allow create: if isVerifiedUser() &&
+        isValidId(appId) &&
+        isValidJobApplication(incoming()) &&
+        incoming().id == appId &&
+        incoming().userUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow delete: if isAdmin() && isValidId(appId);
+    }
+
+    // =========================================================================
+    // 6. /admins/{adminUid} - Trusted Admin Registry
+    // =========================================================================
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && (
+        request.auth.uid == adminUid || isAdmin()
+      );
+
+      allow create: if isAdmin() &&
+        isValidId(adminUid) &&
+        isValidAdminRole(incoming()) &&
+        incoming().uid == adminUid &&
+        incoming().grantedAt == request.time;
+
+      allow delete: if isAdmin() && isValidId(adminUid);
+    }
+
+    // =========================================================================
+    // 7. /minigame_scores/{scoreId} - Pet Arcade Mini-Game Leaderboard
+    // =========================================================================
+    match /minigame_scores/{scoreId} {
+      allow get: if isValidId(scoreId);
+      allow list: if true;
+      allow create: if isValidId(scoreId) &&
+        isValidMiniGameScore(incoming()) &&
+        incoming().id == scoreId &&
+        incoming().createdAt == request.time;
+      allow update: if false; // Scores are immutable records
+      allow delete: if isAdmin() && isValidId(scoreId);
+    }
+
+    // =========================================================================
+    // 8. /villain_leaderboard/{uid} - Global Villain Hitting Leaderboard
+    // =========================================================================
+    match /villain_leaderboard/{uid} {
+      allow get, list: if true;
+      allow create, update: if isValidId(uid) &&
+        incoming().uid is string &&
+        incoming().displayName is string && incoming().displayName.size() <= 80 &&
+        incoming().totalHits is number && incoming().totalHits >= 0 && incoming().totalHits <= 10000000;
+      allow delete: if isAdmin() && isValidId(uid);
+    }
+
+    // =========================================================================
+    // 9. /community_tips/{tipId} - Community Workplace Trivia Submissions
+    // =========================================================================
+    match /community_tips/{tipId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(tipId) &&
+        incoming().title is string && incoming().title.size() <= 160 &&
+        incoming().content is string && incoming().content.size() <= 1500 &&
+        incoming().upvotes is number && incoming().upvotes >= 0 && incoming().upvotes <= 1000000;
+      allow delete: if isAdmin() && isValidId(tipId);
+    }
+
+    // =========================================================================
+    // 10. /community_restaurants/{restId} - Community Food Submissions
+    // =========================================================================
+    match /community_restaurants/{restId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(restId) &&
+        incoming().restaurantName is string && incoming().restaurantName.size() <= 120 &&
+        incoming().upvotes is number && incoming().upvotes >= 0 && incoming().upvotes <= 1000000;
+      allow delete: if isAdmin() && isValidId(restId);
+    }
+
+    // =========================================================================
+    // 11. /user_presence/{uid} - Real-Time Online & Last Online Presence
+    // =========================================================================
+    match /user_presence/{uid} {
+      allow get, list: if true;
+      allow create, update: if isValidId(uid) &&
+        incoming().uid == uid &&
+        incoming().displayName is string && incoming().displayName.size() <= 80 &&
+        incoming().isOnline is bool &&
+        incoming().showOnlineStatus is bool;
+      allow delete: if isAdmin() && isValidId(uid);
+    }
+
+    // =========================================================================
+    // 12. /community_posts/{postId} - Community Submissions (Workplace Secrets, Neighborhood Recs, Afterwork Chat)
+    // =========================================================================
+    match /community_posts/{postId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(postId) &&
+        incoming().title is string && incoming().title.size() <= 160 &&
+        incoming().content is string && incoming().content.size() <= 2000 &&
+        incoming().upvotes is number && incoming().upvotes >= 0 && incoming().upvotes <= 1000000;
+      allow delete: if isAdmin() && isValidId(postId);
+    }
+
+    // =========================================================================
+    // 13. /live_chat_messages/{msgId} - Real-Time Live Chat (World, Group, Private DM)
+    // =========================================================================
+    match /live_chat_messages/{msgId} {
+      allow get, list: if true;
+      allow create: if isValidId(msgId) &&
+        incoming().senderName is string && incoming().senderName.size() <= 80 &&
+        incoming().text is string && incoming().text.size() >= 1 && incoming().text.size() <= 800 &&
+        (incoming().channelType == 'world' || incoming().channelType == 'group' || incoming().channelType == 'private');
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(msgId);
+    }
+
+    // =========================================================================
+    // 14. /live_chat_groups/{groupId} - User-Created Custom Group Chat Rooms
+    // =========================================================================
+    match /live_chat_groups/{groupId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(groupId) &&
+        incoming().name is string && incoming().name.size() >= 1 && incoming().name.size() <= 80;
+      allow delete: if isAdmin() && isValidId(groupId);
+    }
+
+    // =========================================================================
+    // 15. /friend_requests/{requestId} - Real-Time Workplace Friend Requests
+    // =========================================================================
+    match /friend_requests/{requestId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(requestId) &&
+        incoming().id == requestId &&
+        incoming().fromUid == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().fromName is string && incoming().fromName.size() >= 1 && incoming().fromName.size() <= 80 &&
+        incoming().toName is string && incoming().toName.size() >= 1 && incoming().toName.size() <= 80;
+      allow update: if isSignedIn() && isValidId(requestId) && (
+        isAdmin() ||
+        // Recipient can accept or decline
+        (
+          (existing().toUid == request.auth.uid || existing().toName == request.auth.token.name) &&
+          (incoming().status == 'accepted' || incoming().status == 'declined') &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAtIso', 'updatedAt'])
+        ) ||
+        // Sender can cancel their own sent request
+        (
+          existing().fromUid == request.auth.uid &&
+          incoming().status == 'cancelled' &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAtIso', 'updatedAt'])
+        )
+      );
+      allow delete: if isSignedIn() && isValidId(requestId) && (
+        existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid || isAdmin()
+      );
+    }
+  }
+}
+

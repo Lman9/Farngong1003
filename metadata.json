@@ -1,0 +1,6 @@
+{
+  "name": "返工1001 | Farngong1001 - 香港打工仔職場養生指南",
+  "description": "專為香港打工仔而設的職場生存與身心養生指南。涵蓋辦公室拉筋消疲勞、排胃氣中醫食療、平靚正食晏地圖、工餘按摩放鬆、帶薪入廁薪水計算機、打工仔金句語錄及身心健康活動協作。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
